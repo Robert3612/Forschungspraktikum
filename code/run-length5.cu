@@ -8,14 +8,23 @@ std::string decode(std::string s);
 int unBinary_test(std::string code);
 std::string binary_test(int apperance);
 
+ __device__ void Power_of_02(int &a){
+
+ }
+
+
 template <typename T>
 __global__ void decode(T* code, T* outcome,T* mask1, T* mask2, size_t elementcount1, size_t elementcount2) {
     int pos1;
     int pos2;
+    int pos3;
+    int pos4;
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if(i <= elementcount2/3){
         pos1 = mask2[i*3];
         pos2 = mask2[i*3+2];
+        pos3 = mask2[(i+1)*3];
+        pos4 = mask2[(i+1)*3+2];
         
     }
 }
