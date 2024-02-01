@@ -11,3 +11,15 @@ Ziele:
 für günstigen Fall: ruhig 10 mal gleiche Zahl nehmen
 metadaten: struct, Funktionsparameter, array
 -> schauen was schneller ist 
+
+1.02.
+Konzept + Implementierung für Load/store, Abstraktion:
+auch zero-suppression möglich
+innerhalb eines Arrays, statische bit-size
+bit-packing,
+
+Evulation mit beiden Schemata
+Vergleich mit beiden und unkomprimiert 
+
+
+12.2., 12:30 Treffen
