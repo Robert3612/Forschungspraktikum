@@ -21,5 +21,13 @@ bit-packing,
 Evulation mit beiden Schemata
 Vergleich mit beiden und unkomprimiert 
 
+8.2.
+evaluation:
+beide algorithmen
+zero: von 1 bis 64 bit (größe der einzelnen Elemente)
+run-length: nicht gute, okaye, sehr gute Daten
 
-12.2., 12:30 Treffen
+Abstraktion:
+idee ist wichtig, implementierung nicht unbedingt 
+
+12.2 doch nicht, erst wieder 22.2.
