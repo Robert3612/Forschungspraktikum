@@ -81,20 +81,24 @@ void hello_world()
 }
 
 __global__ 
-void zero_sup_no(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount,  uint64_t* C){
-    printf("hallo24324");
+void zero_sup_no(uint64_t* A, uint64_t* B, int number_length_A,int number_length_B, int array_length,int elementcount,  uint64_t* C){
     uint64_t a;
     uint64_t b;
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
          i < elementcount; 
          i += blockDim.x * gridDim.x)
     {
-        a = decode_int(A, i, number_length);
-        b = decode_int(B, i,number_length);
-        printf("a, %d \n", a);
-        printf("b, %d \n", b);
-        printf("hallo");
-        compare(C, a, b, number_length, i);
+        a = decode_int(A, i, number_length_A);
+        b = decode_int(B, i,number_length_B);
+        //printf("a, %d \n", a);
+        //printf("b, %d \n", b);
+        //printf("hallo");
+        if(number_length_A> number_length_B){
+            add(C, a, b, number_length_A, i);
+        }
+        else{
+            add(C, a, b, number_length_B, i);
+        }
 
     }
 }
@@ -148,7 +152,7 @@ void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length
     {
         a = decode_int(shared_mem, i, number_length);
         b = decode_int(shared_mem, i+elementcount,number_length);
-        compare(shared_mem, a, b, number_length, i+2*elementcount);
+        add(shared_mem, a, b, number_length, i+2*elementcount);
 
     }
     __syncthreads();
@@ -159,6 +163,62 @@ void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length
         C[i] = shared_mem[i+2*array_length];
 
     }
+}
+
+int getLength_cpu(int bits ){
+    int size = 0;
+
+    for (; bits != 0; bits >>= 1)
+    size++;
+    return size;
+}
+
+std::vector<uint64_t> add_cpu(std::vector<uint64_t> a, std::vector<uint64_t> b, int element_length){
+    uint64_t c;
+    std::vector<uint64_t> C;
+    for(int i=0;i<a.size();i++){
+        c = a.at(i) + b.at(i);
+        std::cout<< getLength_cpu(c) <<std::endl;
+        std::cout<< element_length <<std::endl;
+        if(getLength_cpu(c) <= element_length){
+            C.push_back(c);
+        }
+        else{
+            C.push_back(0);
+        }
+    }
+    return C;
+}
+
+std::vector<uint64_t> compare_cpu(std::vector<uint64_t> a, std::vector<uint64_t> b){
+    std::vector<uint64_t> C;
+    for(int i=0;i<a.size();i++){
+        if(a.at(i) > b.at(i)){
+            C.push_back(1);
+        }
+        else{
+            C.push_back(0);
+        }
+    }
+    return C;
+}
+
+std::vector<std::string> int_to_string(std::vector<uint64_t> v){
+    std::vector<std::string> s;
+    for(int i=0;i<v.size();i++){
+        s.push_back(std::bitset< 64 >(v.at(i)).to_string());
+    }
+    return s;
+}
+
+std::vector<uint64_t> string_to_int(std::vector<std::string> s){
+    uint64_t helper;
+    std::vector<uint64_t> v;
+    for(int i=0;i<s.size();i++){
+        helper = (uint64_t) std::bitset< 64 >(s.at(i)).to_ulong();
+        v.push_back(helper);
+    }
+    return v;
 }
 
 
@@ -204,6 +264,25 @@ Slabs encode(std::vector<std::string> vector){
 
 }
 
+std::vector<uint64_t> decode(uint64_t* numbers, int number_length, int array_length){
+    int amount = 64 / number_length;
+    uint64_t mask = pow(2,number_length) -1;
+    uint64_t slab;
+    uint64_t answer;
+    std::vector<uint64_t> decoded_numbers;
+    for(int i =0;i<array_length;i++){
+        slab = numbers[i];
+        for(int j =0;j<amount;j++){
+            mask = pow(2,number_length) -1;
+            mask = mask << (j*number_length);
+            answer = slab & mask;
+            answer = answer >> (j*number_length);
+            decoded_numbers.push_back(answer);
+        }
+    }
+    return decoded_numbers;
+}
+
 
 void removeLeadingZeros(std::vector<std::string> &vector)
 {
@@ -219,6 +298,7 @@ void removeLeadingZeros(std::vector<std::string> &vector)
     if( max == 0){
         return;
     }
+    std::cout<< max <<std::endl;
     for(auto i = 0; i < vector.size(); i++){
         if(vector[i].size() > max){
         vector[i].erase(0, vector[i].size() - max);
@@ -229,11 +309,28 @@ void removeLeadingZeros(std::vector<std::string> &vector)
     }
 }
 
+void validate(std::vector<uint64_t> h, std::vector<uint64_t> d) {
+    for (size_t i = 0; i < h.size(); i++) {
+        if (h.at(i) != d.at(i)) {
+            std::cout << "found invalidated field in element " << i << std::endl;
+            std::cout << "on CPU side: " << h.at(i) << std::endl;
+            std::cout << "on GPU side: " << d.at(i) << std::endl;
+        }
+    }
+}
+
+void generate(std::vector<uint64_t> &a, std::vector<uint64_t> &b ){
+    for(int i=0;i<4000;i++){
+        
+    }
+}
+
+
 int main()
 {
 
-    std::vector<std::string> h{"00000110000100000000", "110010100000000", "0100000000", "110001100000000", "010101100000001", "010001000000000", "100000100000000", "010101100010000"};
-    std::vector<std::string> h2{"0010000100000001", "0000010100000001", "0000010100000001", "0000001100000001", "0010101100000000", "0010001000000001", "0100000100000001", "110101100100001"};
+    std::vector<std::string> h{"00000110000100000000", "110010100000000", "1100000000", "110001100000000", "110101100000001", "110001000000000", "100000100000000", "110101100010000"};
+    std::vector<std::string> h2{"001000100000001", "10010100000001", "10010100000001", "10001100000001", "10101100000000", "10001000000001", "100000100000001", "110101100100001"};
 
     removeLeadingZeros(h);
     removeLeadingZeros(h2);
@@ -242,7 +339,8 @@ int main()
         //std::cout<< h[i] << std::endl;
         std::cout<< h2[i] << std::endl;
     }
-
+    std::vector<uint64_t> a = string_to_int(h);
+    std::vector<uint64_t> b = string_to_int(h2);
     
     Slabs s = encode(h);
     Slabs s2 = encode(h2);
@@ -277,17 +375,38 @@ int main()
 
     //2*s.array_length*sizeof(uint64_t)
     //64, 1024, 3*s.array_length*sizeof(uint64_t)
-    //zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
-    hello_world<<<1, 1>>>();
-    cudaDeviceReset();
+    zero_sup_yes2<<<64, 1024, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+    //zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s2.number_length, s.array_length,h.size(),  d_C);
+    //hello_world<<<1, 1>>>();
+    cudaError_t cudaerr = cudaDeviceSynchronize();
+    if (cudaerr != cudaSuccess)
+        printf("kernel launch failed with error \"%s\".\n",
+               cudaGetErrorString(cudaerr));
 
 
     cudaMemcpy(h_out, d_C, bytes, cudaMemcpyDeviceToHost);
 
-    for(int i=0;i<s.array_length;i++){
+    int max_number_length;
+    int max_array_length;
+    if(s.number_length> s2.number_length){
+        max_number_length = s.number_length;
+        max_array_length = s.array_length;
+    }
+    else{
+        max_number_length = s2.number_length;
+        max_array_length = s2.array_length;
+    }
+    for(int i=0;i<max_array_length;i++){
         std::cout<< "hello" <<std::endl;
         std::cout<< std::bitset<64>(h_out[i]) << std::endl;
     }
+    std::vector<uint64_t> decoded_numbers = decode(h_out, max_number_length, max_array_length);
+    for(int i=0;i<decoded_numbers.size();i++){
+        std::cout<<decoded_numbers.at(i)<<std::endl;
+    }
+    std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
+
+    validate(c, decoded_numbers);
 
 
     cudaFree(d_A);
