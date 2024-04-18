@@ -24,13 +24,21 @@ __device__ uint64_t myAtomicAdd(uint64_t* address, uint64_t val)
 }
 #endif
 
-__device__ uint64_t decode_int(uint64_t* array, int i, int number_length)
+__device__ 
+uint64_t decode_int(uint64_t* array, int i, int number_length)
 {
+    if(i==1100){
+    printf("int,%u %u\n",i, number_length);
+    }
     int amount = 64 / number_length;
     int chunk = i/amount;
     int position = i % amount;
-    printf("int, %u %u %u %u %u\n", i, number_length, amount, chunk, position);
+    //printf("int, %u %u %u %u %u\n", i, number_length, amount, chunk, position);
     uint64_t slab = array[chunk];
+    if(i==1101){
+        printf("int,%u %u\n",i, slab);
+        //printf("int,%u %u %u %u %u %u\n",i, slab, number_length, amount, chunk, position);
+    }
     uint64_t mask = pow(2,number_length) -1;
     mask = mask << (position*number_length);
     uint64_t answer = slab & mask;
@@ -45,7 +53,7 @@ int getLength(int bits ){
 
     for (; bits != 0; bits >>= 1)
     size++;
-    printf("i, %d \n", size);
+    //printf("i, %d \n", size);
     return size;
 }
 
@@ -110,9 +118,10 @@ void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,
          i < array_length; 
          i += blockDim.x * gridDim.x)
     {
-        printf("wow, %u %u \n", i, i+ array_length);
+        //printf("wow, %u %u %u\n", i, i+ array_length, array_length);
         shared_mem[i] = A[i];
         shared_mem[i+array_length] = B[i];
+        //shared_mem[10000] = 3;
 
     }
     __syncthreads();
@@ -122,9 +131,13 @@ void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,
          i < elementcount; 
          i += blockDim.x * gridDim.x)
     {
+
         a = decode_int(shared_mem, i, number_length);
         b = decode_int(shared_mem, i+elementcount,number_length);
-        printf("i, %u %u %u \n", i, a, b);
+        //printf("i, %u %u %u %u\n", i, a, b, elementcount);
+       if(i ==1100){
+            printf("i, %u %u %u %u\n", i, a, b, number_length);
+        }
         add(C, a, b, number_length, i);
 
     }
@@ -153,6 +166,10 @@ void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length
         a = decode_int(shared_mem, i, number_length);
         b = decode_int(shared_mem, i+elementcount,number_length);
         add(shared_mem, a, b, number_length, i+2*elementcount);
+        printf("i, %u %u %u \n", i, a, b);
+        if(i ==3999){
+            printf("i, %u %u %u \n", i, a, b);
+        }
 
     }
     __syncthreads();
@@ -178,13 +195,17 @@ std::vector<uint64_t> add_cpu(std::vector<uint64_t> a, std::vector<uint64_t> b, 
     std::vector<uint64_t> C;
     for(int i=0;i<a.size();i++){
         c = a.at(i) + b.at(i);
-        std::cout<< getLength_cpu(c) <<std::endl;
-        std::cout<< element_length <<std::endl;
+        //std::cout<< getLength_cpu(c) <<std::endl;
+        //std::cout<< element_length <<std::endl;
         if(getLength_cpu(c) <= element_length){
             C.push_back(c);
         }
         else{
             C.push_back(0);
+        }
+        if(i ==3999){
+            std::cout<< a.at(i) <<std::endl;
+        std::cout<< b.at(i) <<std::endl;
         }
     }
     return C;
@@ -312,41 +333,48 @@ void removeLeadingZeros(std::vector<std::string> &vector)
 void validate(std::vector<uint64_t> h, std::vector<uint64_t> d) {
     for (size_t i = 0; i < h.size(); i++) {
         if (h.at(i) != d.at(i)) {
-            std::cout << "found invalidated field in element " << i << std::endl;
-            std::cout << "on CPU side: " << h.at(i) << std::endl;
-            std::cout << "on GPU side: " << d.at(i) << std::endl;
+           // std::cout << "found invalidated field in element " << i << std::endl;
+            //std::cout << "on CPU side: " << h.at(i) << std::endl;
+            //std::cout << "on GPU side: " << d.at(i) << std::endl;
         }
     }
 }
 
 void generate(std::vector<uint64_t> &a, std::vector<uint64_t> &b ){
-    for(int i=0;i<4000;i++){
-        
+    for(int i=0;i<1200;i++){
+        a.push_back((uint64_t) rand() % 255 + 1);
+        b.push_back((uint64_t) rand() % 255 + 1);
     }
 }
 
 
 int main()
-{
+{   
+    std::vector<uint64_t> a;
+    std::vector<uint64_t> b;
 
-    std::vector<std::string> h{"00000110000100000000", "110010100000000", "1100000000", "110001100000000", "110101100000001", "110001000000000", "100000100000000", "110101100010000"};
-    std::vector<std::string> h2{"001000100000001", "10010100000001", "10010100000001", "10001100000001", "10101100000000", "10001000000001", "100000100000001", "110101100100001"};
+    generate(a, b);
+
+    //std::vector<std::string> h{"00000110000100000000", "110010100000000", "1100000000", "110001100000000", "110101100000001", "110001000000000", "100000100000000", "110101100010000"};
+    //std::vector<std::string> h2{"001000100000001", "10010100000001", "10010100000001", "10001100000001", "10101100000000", "10001000000001", "100000100000001", "110101100100001"};
+    std::vector<std::string> h = int_to_string(a);
+    std::vector<std::string> h2 = int_to_string(b);
 
     removeLeadingZeros(h);
     removeLeadingZeros(h2);
 
     for(auto i = 0; i < h.size(); i++){
         //std::cout<< h[i] << std::endl;
-        std::cout<< h2[i] << std::endl;
+        //std::cout<< h2[i] << std::endl;
     }
-    std::vector<uint64_t> a = string_to_int(h);
-    std::vector<uint64_t> b = string_to_int(h2);
+    //std::vector<uint64_t> a = string_to_int(h);
+    //std::vector<uint64_t> b = string_to_int(h2);
     
     Slabs s = encode(h);
     Slabs s2 = encode(h2);
     for(int i=0;i<s.array_length;i++){
-        std::cout<< std::bitset<64>(s.array[i]) << std::endl;
-        std::cout<< std::bitset<64>(s2.array[i]) << std::endl;
+        //std::cout<< std::bitset<64>(s.array[i]) << std::endl;
+        //std::cout<< std::bitset<64>(s2.array[i]) << std::endl;
     }
 
 
@@ -375,7 +403,7 @@ int main()
 
     //2*s.array_length*sizeof(uint64_t)
     //64, 1024, 3*s.array_length*sizeof(uint64_t)
-    zero_sup_yes2<<<64, 1024, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+    zero_sup_yes<<<64, 1024, 2*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
     //zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s2.number_length, s.array_length,h.size(),  d_C);
     //hello_world<<<1, 1>>>();
     cudaError_t cudaerr = cudaDeviceSynchronize();
@@ -396,14 +424,14 @@ int main()
         max_number_length = s2.number_length;
         max_array_length = s2.array_length;
     }
-    for(int i=0;i<max_array_length;i++){
-        std::cout<< "hello" <<std::endl;
-        std::cout<< std::bitset<64>(h_out[i]) << std::endl;
-    }
+    //for(int i=0;i<max_array_length;i++){
+    //    std::cout<< "hello" <<std::endl;
+    //    std::cout<< std::bitset<64>(h_out[i]) << std::endl;
+    //}
     std::vector<uint64_t> decoded_numbers = decode(h_out, max_number_length, max_array_length);
-    for(int i=0;i<decoded_numbers.size();i++){
-        std::cout<<decoded_numbers.at(i)<<std::endl;
-    }
+    //for(int i=0;i<decoded_numbers.size();i++){
+    //    std::cout<<decoded_numbers.at(i)<<std::endl;
+    //}
     std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
 
     validate(c, decoded_numbers);
