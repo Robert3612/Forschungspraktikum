@@ -3,6 +3,8 @@
 #include <bitset>
 #include <algorithm>
 #include <math.h>
+#include <inttypes.h>
+#include <fstream>
 
 #if __CUDA_ARCH__ < 600
 __device__ uint64_t myAtomicAdd(uint64_t* address, uint64_t val)
@@ -27,18 +29,10 @@ __device__ uint64_t myAtomicAdd(uint64_t* address, uint64_t val)
 __device__ 
 uint64_t decode_int(uint64_t* array, int i, int number_length)
 {
-    if(i==1100){
-    printf("int,%u %u\n",i, number_length);
-    }
     int amount = 64 / number_length;
     int chunk = i/amount;
     int position = i % amount;
-    //printf("int, %u %u %u %u %u\n", i, number_length, amount, chunk, position);
     uint64_t slab = array[chunk];
-    if(i==1101){
-        printf("int,%u %u\n",i, slab);
-        //printf("int,%u %u %u %u %u %u\n",i, slab, number_length, amount, chunk, position);
-    }
     uint64_t mask = pow(2,number_length) -1;
     mask = mask << (position*number_length);
     uint64_t answer = slab & mask;
@@ -48,25 +42,36 @@ uint64_t decode_int(uint64_t* array, int i, int number_length)
 }
 
 __device__ 
-int getLength(int bits ){
+int getLength(uint64_t bits ){
+
     int size = 0;
 
-    for (; bits != 0; bits >>= 1)
+    for (; bits != 0; bits >>= 1){
+
     size++;
-    //printf("i, %d \n", size);
+    }
+
     return size;
 }
 
 __device__
 void add( uint64_t* C, uint64_t a, uint64_t b, int number_length, int i){
+
     uint64_t c = a +b;
+
     if(getLength(c)<=number_length){
+
         int amount = 64 / number_length;
+
         int chunk = i/amount;
-        int position = i % amount;  
+
+        int position = i % amount;
+
         c = c << (position*number_length);
+
         myAtomicAdd(&C[chunk], c);
     }
+
 }
 
 __device__
@@ -92,21 +97,21 @@ __global__
 void zero_sup_no(uint64_t* A, uint64_t* B, int number_length_A,int number_length_B, int array_length,int elementcount,  uint64_t* C){
     uint64_t a;
     uint64_t b;
+    
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
          i < elementcount; 
          i += blockDim.x * gridDim.x)
     {
+        
         a = decode_int(A, i, number_length_A);
         b = decode_int(B, i,number_length_B);
-        //printf("a, %d \n", a);
-        //printf("b, %d \n", b);
-        //printf("hallo");
-        if(number_length_A> number_length_B){
-            add(C, a, b, number_length_A, i);
-        }
-        else{
-            add(C, a, b, number_length_B, i);
-        }
+       if(i ==6){
+        printf("wow, %lld %lld\n", (unsigned long long) a, (unsigned long long) b);
+       }
+
+        add(C, a, b, number_length_A, i);
+
+
 
     }
 }
@@ -114,30 +119,36 @@ void zero_sup_no(uint64_t* A, uint64_t* B, int number_length_A,int number_length
 __global__ 
 void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount, uint64_t* C){
     extern __shared__ uint64_t shared_mem[];
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
-         i < array_length; 
-         i += blockDim.x * gridDim.x)
+
+   for (int i = threadIdx.x; i < array_length; i += blockDim.x )
     {
         //printf("wow, %u %u %u\n", i, i+ array_length, array_length);
+       // printf("wow, %u %u %u\n", i, A[i], B[i]);
+         //printf("wow, %lld %lld\n", (unsigned long long) A[i], (unsigned long long) B[i]);
         shared_mem[i] = A[i];
         shared_mem[i+array_length] = B[i];
+        if(i==75){
+            //printf("wow, %u %lld %u\n", i,(unsigned long long) shared_mem[i], array_length);
+        }
         //shared_mem[10000] = 3;
-
     }
+   
+
+    
     __syncthreads();
+    
     int a;
     int b;
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
          i < elementcount; 
          i += blockDim.x * gridDim.x)
     {
-
         a = decode_int(shared_mem, i, number_length);
         b = decode_int(shared_mem, i+elementcount,number_length);
-        //printf("i, %u %u %u %u\n", i, a, b, elementcount);
-       if(i ==1100){
-            printf("i, %u %u %u %u\n", i, a, b, number_length);
-        }
+        int amount = 64 / number_length;
+        int chunk = i/amount;
+
+
         add(C, a, b, number_length, i);
 
     }
@@ -147,9 +158,7 @@ void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,
 __global__ 
 void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount,  uint64_t* C){
     extern __shared__ uint64_t shared_mem[];
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
-         i < array_length; 
-         i += blockDim.x * gridDim.x)
+    for (int i = threadIdx.x; i < array_length; i += blockDim.x)
     {
         shared_mem[i] = A[i];
         shared_mem[i+array_length] = B[i];
@@ -166,27 +175,23 @@ void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length
         a = decode_int(shared_mem, i, number_length);
         b = decode_int(shared_mem, i+elementcount,number_length);
         add(shared_mem, a, b, number_length, i+2*elementcount);
-        printf("i, %u %u %u \n", i, a, b);
-        if(i ==3999){
-            printf("i, %u %u %u \n", i, a, b);
-        }
 
     }
     __syncthreads();
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
-         i < array_length; 
-         i += blockDim.x * gridDim.x)
+    for (int i = threadIdx.x; i < array_length; i += blockDim.x)
     {
         C[i] = shared_mem[i+2*array_length];
 
     }
 }
 
-int getLength_cpu(int bits ){
-    int size = 0;
+uint64_t getLength_cpu(uint64_t bits ){
+    uint64_t size = 0;
 
     for (; bits != 0; bits >>= 1)
     size++;
+
+    std::cout<<size<<std::endl;
     return size;
 }
 
@@ -195,17 +200,14 @@ std::vector<uint64_t> add_cpu(std::vector<uint64_t> a, std::vector<uint64_t> b, 
     std::vector<uint64_t> C;
     for(int i=0;i<a.size();i++){
         c = a.at(i) + b.at(i);
-        //std::cout<< getLength_cpu(c) <<std::endl;
-        //std::cout<< element_length <<std::endl;
+        std::cout<< i <<std::endl;
+        std::cout<< a.at(i) <<std::endl;
+        std::cout<< b.at(i) <<std::endl;
         if(getLength_cpu(c) <= element_length){
             C.push_back(c);
         }
         else{
             C.push_back(0);
-        }
-        if(i ==3999){
-            std::cout<< a.at(i) <<std::endl;
-        std::cout<< b.at(i) <<std::endl;
         }
     }
     return C;
@@ -319,7 +321,6 @@ void removeLeadingZeros(std::vector<std::string> &vector)
     if( max == 0){
         return;
     }
-    std::cout<< max <<std::endl;
     for(auto i = 0; i < vector.size(); i++){
         if(vector[i].size() > max){
         vector[i].erase(0, vector[i].size() - max);
@@ -333,27 +334,131 @@ void removeLeadingZeros(std::vector<std::string> &vector)
 void validate(std::vector<uint64_t> h, std::vector<uint64_t> d) {
     for (size_t i = 0; i < h.size(); i++) {
         if (h.at(i) != d.at(i)) {
-           // std::cout << "found invalidated field in element " << i << std::endl;
-            //std::cout << "on CPU side: " << h.at(i) << std::endl;
-            //std::cout << "on GPU side: " << d.at(i) << std::endl;
+
+            std::cout << "found invalidated field in element " << i << std::endl;
+            std::cout << "on CPU side: " << h.at(i) << std::endl;
+            std::cout << "on GPU side: " << d.at(i) << std::endl;
+            
         }
     }
 }
 
-void generate(std::vector<uint64_t> &a, std::vector<uint64_t> &b ){
-    for(int i=0;i<1200;i++){
-        a.push_back((uint64_t) rand() % 255 + 1);
-        b.push_back((uint64_t) rand() % 255 + 1);
+void generate(std::vector<uint64_t> &a, std::vector<uint64_t> &b , int n, int elementcount){
+    int number = pow(2,n) -1;
+    for(int i=0;i<elementcount;i++){
+        a.push_back((uint64_t) rand() % number + 1);
+        b.push_back((uint64_t) rand() % number + 1);
     }
 }
 
+void test(){
+    //size_t elementcount=1048576;
+    size_t elementcount=5000;
+    int length=8;
+    std::ofstream myFile("no_shared.csv");
+    myFile << "kernel;element_count;bit_count;block_count;thread_count;time_ms;throughput\n";
 
-int main()
-{   
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    for(int l = 8; l<=64;l=l+8){
+        std::cout<< l<<std::endl;
     std::vector<uint64_t> a;
     std::vector<uint64_t> b;
 
-    generate(a, b);
+    generate(a, b, l, elementcount);
+
+    std::vector<std::string> h = int_to_string(a);
+    std::vector<std::string> h2 = int_to_string(b);
+
+    removeLeadingZeros(h);
+    removeLeadingZeros(h2);
+
+    
+    Slabs s = encode(h);
+    Slabs s2 = encode(h2);
+
+
+    uint64_t* d_A;
+    uint64_t* d_B;
+    uint64_t* d_C;
+
+
+    uint64_t* h_out;
+
+    size_t bytes = s.array_length * sizeof(uint64_t);
+    size_t bytes2 = s.array_length * sizeof(unsigned long long int);
+    h_out = (uint64_t*)malloc(bytes);
+
+    cudaMalloc(&d_A, bytes);
+    cudaMalloc(&d_B, bytes);
+    cudaMalloc(&d_C, bytes2);
+
+    cudaMemcpy(d_A, s.array, bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, s2.array, bytes, cudaMemcpyHostToDevice);
+    
+
+    
+    for(int i=16;i<=1024;i=i*2){
+        std::cout<< i<<std::endl;
+        for(int j=8;j<=512;j=j*2){
+            std::cout<< j<<std::endl;
+            cudaMemset(d_C, 0, bytes2);
+	
+            cudaEventRecord(start);
+            zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s2.number_length, s.array_length,h.size(),  d_C);
+            cudaEventRecord(stop);
+    
+            cudaMemcpy(h_out, d_C, bytes, cudaMemcpyDeviceToHost);
+
+            cudaEventSynchronize(stop);
+
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+
+            int max_number_length;
+            int max_array_length;
+            if(s.number_length> s2.number_length){
+            max_number_length = s.number_length;
+            max_array_length = s.array_length;
+        }
+        else{
+            max_number_length = s2.number_length;
+            max_array_length = s2.array_length;
+        }
+
+        std::vector<uint64_t> decoded_numbers = decode(h_out, max_number_length, max_array_length);
+        std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
+
+        validate(c, decoded_numbers);
+
+            myFile << "no_shared" << ";";
+            myFile << elementcount << ";";
+            myFile << l << ";";
+            myFile << j << ";";
+            myFile << i << ";";
+            myFile << milliseconds << ";";
+            myFile << s.array_length*8*2/milliseconds/1e6 << "\n";
+        }
+    }
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+    free(h_out);
+    }
+
+    
+}
+
+int main()
+{   
+    //test();
+    
+    std::vector<uint64_t> a;
+    std::vector<uint64_t> b;
+
+    generate(a, b,32, 50);
 
     //std::vector<std::string> h{"00000110000100000000", "110010100000000", "1100000000", "110001100000000", "110101100000001", "110001000000000", "100000100000000", "110101100010000"};
     //std::vector<std::string> h2{"001000100000001", "10010100000001", "10010100000001", "10001100000001", "10101100000000", "10001000000001", "100000100000001", "110101100100001"};
@@ -395,16 +500,20 @@ int main()
     cudaMalloc(&d_A, bytes);
     cudaMalloc(&d_B, bytes);
     cudaMalloc(&d_C, bytes2);
-
+    for(int i=0;i<s.array_length;i++){
+        //std::cout<< i <<", " << s.array[i]<<std::endl;
+    }
     cudaMemcpy(d_A, s.array, bytes, cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, s2.array, bytes, cudaMemcpyHostToDevice);
-
+    for(int i=0;i<s.array_length;i++){
+        //std::cout<< i <<", " << d_B<<std::endl;
+    }
     cudaMemset(d_C, 0, bytes2);
-
+    std::cout << "lets go" <<std::endl;
     //2*s.array_length*sizeof(uint64_t)
     //64, 1024, 3*s.array_length*sizeof(uint64_t)
-    zero_sup_yes<<<64, 1024, 2*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
-    //zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s2.number_length, s.array_length,h.size(),  d_C);
+    //zero_sup_yes2<<<1, 32, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+    zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s2.number_length, s.array_length,h.size(),  d_C);
     //hello_world<<<1, 1>>>();
     cudaError_t cudaerr = cudaDeviceSynchronize();
     if (cudaerr != cudaSuccess)
