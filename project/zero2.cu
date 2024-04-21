@@ -178,6 +178,32 @@ void zero_sup_no(uint64_t* A, uint64_t* B, int number_length_A,int number_length
 }
 
 __global__ 
+void no_zero(uint64_t* A, uint64_t* B,int number_length_A, int elementcount, uint64_t* C){
+    uint64_t c;
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < elementcount; 
+         i += blockDim.x * gridDim.x)
+    {
+        
+        /**c = A[i] + B[i];
+        if(getLength(c) <= number_length_A){
+            C[i] = c;
+        }
+        else{
+            C[i] = 0;
+        }**/
+        if(A[i] > B[i]){
+            C[i] = 1;
+        }
+        else{
+            C[i] = 0;
+        }
+
+
+    }
+}
+
+__global__ 
 void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount, uint64_t* C){
     extern __shared__ uint64_t shared_mem[];
 
@@ -215,6 +241,7 @@ void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,
 __global__ 
 void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount,  uint64_t* C){
     extern __shared__ uint64_t shared_mem[];
+
     for (int i = threadIdx.x; i < array_length; i += blockDim.x)
     {
         shared_mem[i] = A[i];
@@ -421,13 +448,13 @@ void test(){
     size_t elementcount=1000;
     int length=8;
     //std::ofstream myFile("no_shared.csv");
-    std::ofstream myFile("shared2_add.csv");
+    std::ofstream myFile("no_zero_add.csv");
     myFile << "kernel;element_count;bit_count;block_count;thread_count;time_ms;throughput\n";
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    for(int l = 1; l<=32;l++){
+    for(int l = 1; l<=64;l++){
         std::cout<< "l: "<<l<<std::endl;
     std::vector<uint64_t> a;
     std::vector<uint64_t> b;
@@ -465,14 +492,14 @@ void test(){
     
 
     
-    for(int i=512;i<=1024;i=i*2){
+    for(int i=16;i<=1024;i=i*2){
         std::cout<< "i: "<<i<<std::endl;
-        for(int j=8;j<=64;j=j*2){
+        for(int j=8;j<=512;j=j*2){
             std::cout<<"j: "<< j<<std::endl;
             cudaMemset(d_C, 0, bytes2);
 	
             cudaEventRecord(start);
-            zero_sup_yes2<<<j, i ,3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+            no_zero<<<j, i >>>(d_A, d_B, s.number_length,h.size(),  d_C);
             cudaEventRecord(stop);
     
             cudaMemcpy(h_out, d_C, bytes, cudaMemcpyDeviceToHost);
@@ -518,14 +545,132 @@ void test(){
     
 }
 
+void test2(){
+    //size_t elementcount=1048576;
+    //96000
+    //1000
+    size_t elementcount=1000;
+    int length=8;
+    //std::ofstream myFile("no_shared.csv");
+    std::ofstream myFile("no_zero_compare.csv");
+    myFile << "kernel;element_count;bit_count;block_count;thread_count;time_ms;throughput\n";
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    for(int l = 1; l<=64;l++){
+        std::cout<< "l: "<<l<<std::endl;
+    std::vector<uint64_t> a;
+    std::vector<uint64_t> b;
+
+    generate(a, b, l, elementcount);
+    size_t bytes = elementcount * sizeof(uint64_t);
+    size_t bytes2 = elementcount * sizeof(unsigned long long int);
+
+    std::vector<std::string> h = int_to_string(a);
+    std::vector<std::string> h2 = int_to_string(b);
+
+    removeLeadingZeros(h);
+    removeLeadingZeros(h2);
+
+    
+    Slabs s = encode(h);
+    Slabs s2 = encode(h2);
+    uint64_t* h_A;
+    uint64_t* h_B;
+
+    h_A = (uint64_t*)malloc(bytes);
+    h_B = (uint64_t*)malloc(bytes);
+    for(int i = 0;i<a.size();i++){
+        h_A[i] = a.at(i);
+        h_B[i] = b.at(i);
+    }
+
+
+    uint64_t* d_A;
+    uint64_t* d_B;
+    uint64_t* d_C;
+
+
+    uint64_t* h_out;
+
+    
+    h_out = (uint64_t*)malloc(bytes);
+
+    cudaMalloc(&d_A, bytes);
+    cudaMalloc(&d_B, bytes);
+    cudaMalloc(&d_C, bytes2);
+
+    cudaMemcpy(d_A, h_A, bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, h_B, bytes, cudaMemcpyHostToDevice);
+    
+
+    
+    for(int i=16;i<=1024;i=i*2){
+        std::cout<< "i: "<<i<<std::endl;
+        for(int j=8;j<=512;j=j*2){
+            std::cout<<"j: "<< j<<std::endl;
+            cudaMemset(d_C, 0, bytes2);
+	
+            cudaEventRecord(start);
+            no_zero<<<j, i >>>(d_A, d_B, s.number_length,h.size(),  d_C);
+            cudaEventRecord(stop);
+    
+            cudaMemcpy(h_out, d_C, bytes, cudaMemcpyDeviceToHost);
+
+            cudaEventSynchronize(stop);
+
+            float milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, start, stop);
+
+            int max_number_length;
+            int max_array_length;
+            if(s.number_length> s2.number_length){
+            max_number_length = s.number_length;
+            max_array_length = s.array_length;
+        }
+        else{
+            max_number_length = s2.number_length;
+            max_array_length = s2.array_length;
+        }
+
+        //std::vector<uint64_t> decoded_numbers = decode(h_out, max_number_length, max_array_length);
+        //std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
+        std::vector<uint64_t> c = compare_cpu(a,b);
+        std::vector<uint64_t> decoded_numbers;
+        for(int s=0;s<a.size();s++){
+            decoded_numbers.push_back(h_out[s]);
+        }
+
+        validate(c, decoded_numbers);
+
+            myFile << "no_shared" << ";";
+            myFile << elementcount << ";";
+            myFile << l << ";";
+            myFile << j << ";";
+            myFile << i << ";";
+            myFile << milliseconds << ";";
+            myFile << elementcount*8*2/milliseconds/1e6 << "\n";
+        }
+    }
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+    free(h_out);
+    }
+
+    
+}
+
 int main()
 {   
-    test();
+    test2();
     /**
     std::vector<uint64_t> a;
     std::vector<uint64_t> b;
 
-    generate(a, b,16, 1000);
+    generate(a, b,16, 1020);
 
     //std::vector<std::string> h{"00000110000100000000", "110010100000000", "1100000000", "110001100000000", "110101100000001", "110001000000000", "100000100000000", "110101100010000"};
     //std::vector<std::string> h2{"001000100000001", "10010100000001", "10010100000001", "10001100000001", "10101100000000", "10001000000001", "100000100000001", "110101100100001"};
@@ -569,8 +714,11 @@ int main()
     cudaMemset(d_C, 0, bytes2);
     //2*s.array_length*sizeof(uint64_t)
     //64, 1024, 3*s.array_length*sizeof(uint64_t)
-    std::cout<< 2*s.array_length*sizeof(uint64_t)<<std::endl;
-    zero_sup_yes<<<64, 1024, 2*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+    std::cout<<"hello "<< 3*s.array_length*sizeof(uint64_t)<<std::endl;
+    std::cout<<"hello "<< sizeof(uint64_t)<<std::endl;
+    //cudaFuncSetAttribute(zero_sup_yes2, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
+    zero_sup_yes2<<<64, 1024, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+    
     //zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s.number_length, s.array_length,h.size(),  d_C);
     //hello_world<<<1, 1>>>();
     cudaError_t cudaerr = cudaDeviceSynchronize();
