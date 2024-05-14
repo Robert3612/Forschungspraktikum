@@ -3,8 +3,8 @@
 #include <bitset>
 #include <algorithm>
 #include <math.h>
-__device__ void get_number_and_length(char *array, int* mask, int &number_length, int &number, int &helper, int i){
-    //printf("hallo37 %u %u %u %u\n", array[74], array[helper], helper, i);
+__device__ void get_number_and_length(char *array, int* mask, int &number_length, int &number, int &helper, int i, int h){
+    //printf("hallo37 %u %u %u %u %u\n", array[12], array[13], helper, i, h);
     number = array[helper] - '0';
     //printf("hallo36 %u %u %u %u\n", number_length, number, helper, i);
     int otherHelper = helper + 1;
@@ -18,7 +18,7 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
         numbercount++;
     }
     helper = helper + 2 + numbercount;
-    //printf("hallo38 %u %u %u %u\n", number_length, number, helper, i);
+    //printf("hallo38 %u %u %u %u %u\n", number_length, number, helper, i, h);
 }
 
    __device__ int decode_int(char *array, int* mask, int i, int h)
@@ -32,8 +32,8 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     int number = 0;
 
     helper = mask[i*3]; //0
-    get_number_and_length(array, mask, number_length, number, helper, i);
-    printf("hallo39 %u %u %u %u\n", number_length, number, helper, i);
+    get_number_and_length(array, mask, number_length, number, helper, i, h);
+    //printf("hallo39 %u %u %u %u\n", number_length, number, helper, i);
     //int number = array[helper]; //1
     //int numbercount = 0;
     //while(array[otherHelper] != 'E'){
@@ -49,15 +49,22 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
         for(int j=0;j< length;j++){
             answer = answer + number * pow(10,j);
         }
+        return answer;
     }else{
         for(int j = i-1;j>=0;j--){
+            if(mask[j*3+2] == 0){
+                break;
+            }
         number_length = number_length - mask[j*3+2];
         if(mask[j*3+1] - mask[j*3+2] != 0){
             break;
         }
     }
+    //printf("hallo39 %u %u %u %u %u\n", number_length, number, helper, i, h);
     //printf("hallo11 \n");
-        for(int k = length ; k> 0 ;k--){ //3
+        int k=length;
+        while(k>0){ //3
+        //printf("hallo41 %u %u %u %u\n", number_length, number, k, i);
         //printf("hallo12 %u %u %u\n", k, length, 9);
             for(int j=0;j<number_length;j++){
                 //printf("hallo13 %u %u %u\n", j, number_length, 9);
@@ -66,7 +73,8 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
             }
             if(k > 0){
             //printf("hallo9 %u %u %u\n", i, h, helper);
-            get_number_and_length(array, mask, number_length, number, helper, i);
+            get_number_and_length(array, mask, number_length, number, helper, i,h);
+            //printf("hallo40 %u %u %u %u %u\n", number_length, number, helper,k, i);
             //number = array[helper];
             //number_length = array[helper+1];
             }
@@ -141,7 +149,12 @@ void encode2(std::vector<uint64_t> start, std::vector<int> &mask, std::string &o
     for(int i = 0;i<input.length();i++){
         if(input2[step]== 'A'){
             mask.push_back(max_count);
-            mask.push_back(test_count);
+            if(input[i] != input[i-1]){
+                mask.push_back(0);
+            }
+            else{
+                mask.push_back(test_count);
+            }
         }
         if(count == 0){
             helper = input[i];
@@ -252,23 +265,22 @@ int main()
     std::vector<int> mask2;
     std::string outcome2 = "";
 
-    int elementcount = 10;
+    int elementcount = 100000;
     
     generate(start, elementcount);
     generate(start2, elementcount);
-    for (auto i: start)
-        std::cout << i << ", ";
-    std::cout<<std::endl;
+    //for (auto i: start)
+    //    std::cout << i << ", ";
+    //std::cout<<std::endl;
 
-    for (auto i: start2)
-        std::cout << i << ", ";
-    std::cout<<std::endl;
-    
+    //for (auto i: start2)
+    //    std::cout << i << ", ";
+    //std::cout<<std::endl;
     encode2(start, mask, outcome);
     encode2(start2, mask2, outcome2);
     
-    std::cout << outcome << std::endl;
-    
+    //std::cout << outcome << std::endl;
+    /**
     for (auto i: mask)
         std::cout << i << ", ";
     std::cout<<std::endl;
@@ -278,8 +290,8 @@ int main()
     for (auto i: mask2)
         std::cout << i << ", ";
     std::cout<<std::endl;
+    **/
     
-
     char* A;
     char* d_A;
     int* mask_A;
