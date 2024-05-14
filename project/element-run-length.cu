@@ -12,22 +12,27 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     number_length  = 0;
     int n = 0;
     while(array[otherHelper] != 'E'){
-        n =array[otherHelper] - '0';
-        number_length = number_length + n *pow(10, numbercount);
         otherHelper++;
         numbercount++;
     }
+    otherHelper = helper + 1;
     helper = helper + 2 + numbercount;
+    while(numbercount > 0){
+        n =array[otherHelper] - '0';
+        number_length = number_length + n *pow(10, numbercount-1);
+        otherHelper++;
+        numbercount--;
+    }
     //printf("hallo38 %u %u %u %u %u\n", number_length, number, helper, i, h);
 }
 
-   __device__ int decode_int(char *array, int* mask, int i, int h)
+   __device__ uint64_t decode_int(char *array, int* mask, int i, int h)
 {
     //printf("hallo9 %u %u %u\n", i, h, 9);
     int helper;
     int length;
     int number_length = 0;
-    int answer = 0;
+    uint64_t answer = 0;
     //int otherHelper = helper +1;
     int number = 0;
 
@@ -47,7 +52,7 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     //printf("hallo10");
     if(length == mask[i*3+2]){// 3==1 
         for(int j=0;j< length;j++){
-            answer = answer + number * pow(10,j);
+            answer = answer +(uint64_t) number * pow(10,j);
         }
         return answer;
     }else{
@@ -68,7 +73,7 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
         //printf("hallo12 %u %u %u\n", k, length, 9);
             for(int j=0;j<number_length;j++){
                 //printf("hallo13 %u %u %u\n", j, number_length, 9);
-                answer = answer + number * pow(10, k-1);
+                answer = answer +(uint64_t) number * pow(10, k-1);
                 k--;
             }
             if(k > 0){
@@ -89,8 +94,8 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
 __global__ 
 void add(char *A, char *B, int *C, int *mask_A, int *mask_B, int elementcount) {
     //printf("hallo \n");
-    int a;
-    int b;
+    uint64_t a;
+    uint64_t b;
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
          i < elementcount; 
          i += blockDim.x * gridDim.x)
@@ -99,7 +104,7 @@ void add(char *A, char *B, int *C, int *mask_A, int *mask_B, int elementcount) {
         a = decode_int(A, mask_A, i, 0);
         b = decode_int(B, mask_B, i, 1);
 
-        printf("hallo4 %u %u %u\n", i, a, b);
+        printf("hallo4 %u %lld %lld\n", i, a, b);
         if(a > b){
             C[i] = (int) 1;
         }
@@ -208,21 +213,21 @@ void generate2(){
 
 
 void generate(std::vector<uint64_t> &start,int elementcount){
-    
+    /**
     for(int i=0;i<elementcount;i++){
         start.push_back(rand() % 1024);
     }
+    **/
     
-    /**
-    start.push_back(776);
-    start.push_back(66);
-    start.push_back(644);
-    start.push_back(4);
-    start.push_back(445);
-    start.push_back(648);
+    start.push_back(988888888888888);
+    start.push_back(866);
+    start.push_back(666);
+    start.push_back(6);
+    start.push_back(666);
+    start.push_back(666);
     start.push_back(8822);
     start.push_back(2);
-    **/
+    
 
 }
 
@@ -265,7 +270,7 @@ int main()
     std::vector<int> mask2;
     std::string outcome2 = "";
 
-    int elementcount = 100000;
+    int elementcount = 8;
     
     generate(start, elementcount);
     generate(start2, elementcount);
