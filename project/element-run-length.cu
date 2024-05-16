@@ -3,6 +3,27 @@
 #include <bitset>
 #include <algorithm>
 #include <math.h>
+#include <sstream>
+__device__ uint64_t pow10_fast(int n){
+    static uint64_t pow10[20] = {
+        1, 10, 100, 1000, 10000, 
+        100000, 1000000, 10000000, 100000000, 
+        1000000000,
+        10000000000,
+        100000000000,
+        1000000000000,
+        10000000000000,
+        100000000000000,
+        1000000000000000,
+        10000000000000000,
+        100000000000000000,
+        1000000000000000000,
+        10000000000000000000
+    };
+
+    return pow10[n];
+}
+
 __device__ void get_number_and_length(char *array, int* mask, int &number_length, int &number, int &helper, int i, int h){
     //printf("hallo37 %u %u %u %u %u\n", array[12], array[13], helper, i, h);
     number = array[helper] - '0';
@@ -19,7 +40,7 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     helper = helper + 2 + numbercount;
     while(numbercount > 0){
         n =array[otherHelper] - '0';
-        number_length = number_length + n *pow(10, numbercount-1);
+        number_length = number_length + n *pow10_fast( numbercount-1);
         otherHelper++;
         numbercount--;
     }
@@ -35,7 +56,7 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     
     for(int j=length; j>0;j--){
         n = array[helper] - '0';
-        answer = answer + (uint64_t) n * pow(10,j-1);
+        answer = answer + (uint64_t) n * pow10_fast(j-1);
         helper++;
     }
     
@@ -70,7 +91,7 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     //printf("hallo10");
     if(length == mask[i*3+2]){// 3==1 
         for(int j=0;j< length;j++){
-            answer = answer +(uint64_t) number * pow(10,j);
+            answer = answer +(uint64_t) number * pow10_fast(j);
         }
         return answer;
     }else{
@@ -91,8 +112,11 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
         //printf("hallo12 %u %u %u\n", k, length, 9);
             for(int j=0;j<number_length;j++){
                 //printf("hallo13 %u %u %u\n", j, number_length, 9);
-                answer = answer +(uint64_t) number * pow(10, k-1);
+                answer = answer +(uint64_t) number * pow10_fast(k-1);
                 k--;
+                if(k<=0){
+                    break;
+                }
             }
             if(k > 0){
             //printf("hallo9 %u %u %u\n", i, h, helper);
@@ -260,6 +284,53 @@ void generate2(){
     std::cout << "Maske: 0,4,2,2,2,3,4,1,4,2,8,3,10,4,12,1"<< std::endl;
 }
 
+uint64_t string_to_uint64(std::string str) {
+  std::stringstream stream(str);
+  uint64_t result;
+  stream >> result;
+  return result;
+}
+
+void generate_stuff(std::vector<uint64_t> &start,int elementcount, int repeat){
+    char number ='0'+ rand() % 10 ;
+    int single = 0;
+    int length = 0;
+    std::string realnumber = "";
+    int diff = repeat;
+    int repeat_diff= repeat;
+    for(int i=0;i<elementcount;i++){
+        length = rand() % 20 + 1 ;
+        single = rand() % 2;
+        while(length > 0){
+            if(single == 0){
+                realnumber = realnumber + std::to_string(rand() % 10);
+                length--;
+                single = rand() %2;
+            }
+            else{
+                diff = length - repeat_diff;
+                if(diff >= 0){
+                    realnumber = realnumber + std::string(repeat_diff,number );
+                    length = length - repeat_diff;
+                    repeat_diff = 0;
+                }
+                else{
+                    realnumber = realnumber + std::string(length,number );
+                    repeat_diff = repeat_diff - length;
+                    length = 0;
+                }
+                if(repeat_diff <= 0){
+                    repeat_diff = repeat;
+                    number ='0'+ rand() % 10 ;
+                }
+            }
+        }
+        std::cout<<realnumber<<std::endl;
+        start.push_back(std::stoull(realnumber));
+        realnumber = "";
+    }
+}
+
 
 void generate(std::vector<uint64_t> &start,int elementcount){
     
@@ -319,10 +390,10 @@ int main()
     std::vector<int> mask2;
     std::string outcome2 = "";
 
-    int elementcount = 10000;
+    int elementcount = 10;
     
-    generate(start, elementcount);
-    generate(start2, elementcount);
+    generate_stuff(start, elementcount, 5);
+    generate_stuff(start2, elementcount, 5);
     for (auto i: start)
         std::cout << i << ", ";
     std::cout<<std::endl;
@@ -330,8 +401,9 @@ int main()
     for (auto i: start2)
         std::cout << i << ", ";
     std::cout<<std::endl;
-    encode_no(start, mask, outcome);
-    encode_no(start2, mask2, outcome2);
+    
+    encode2(start, mask, outcome);
+    encode2(start2, mask2, outcome2);
     
     std::cout << outcome << std::endl;
     
@@ -395,7 +467,7 @@ int main()
     cudaMemcpy( d_mask_B, mask_B, bytes4, cudaMemcpyHostToDevice);
     cudaMemset(d_C, 0, elementcount * sizeof(int));
 
-    compare_no<<<64, 1024>>>(d_A,d_B,d_C, d_mask_A,d_mask_B , elementcount);
+    add<<<64, 1024>>>(d_A,d_B,d_C, d_mask_A,d_mask_B , elementcount);
     cudaError_t cudaerr = cudaDeviceSynchronize();
     if (cudaerr != cudaSuccess)
         printf("kernel launch failed with error \"%s\".\n",
