@@ -25,6 +25,24 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     }
     //printf("hallo38 %u %u %u %u %u\n", number_length, number, helper, i, h);
 }
+   __device__ uint64_t decode_int_no(char *array, int* mask, int i, int h)
+{
+
+    int helper = mask[i*2];
+    int length = mask[i*2+1];
+    uint64_t answer = 0;
+    int n = 0;
+    
+    for(int j=length; j>0;j--){
+        n = array[helper] - '0';
+        answer = answer + (uint64_t) n * pow(10,j-1);
+        helper++;
+    }
+    
+
+    return answer;
+}
+
 
    __device__ uint64_t decode_int(char *array, int* mask, int i, int h)
 {
@@ -89,7 +107,29 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
     return answer;
 }
 
+__global__ 
+void compare_no(char *A, char *B, int *C, int *mask_A, int *mask_B, int elementcount) {
+    //printf("hallo \n");
+    uint64_t a;
+    uint64_t b;
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < elementcount; 
+         i += blockDim.x * gridDim.x)
+    {   
+        //printf("hallo5 %u %u %u\n", A[60], B[75], 2);
+        a = decode_int_no(A, mask_A, i, 0);
+        b = decode_int_no(B, mask_B, i, 1);
 
+        printf("hallo4 %u %lld %lld\n", i, a, b);
+        if(a > b){
+            C[i] = (int) 1;
+        }
+        else{
+            C[i] = (int) 0;
+        }
+    }
+    
+}
 
 __global__ 
 void add(char *A, char *B, int *C, int *mask_A, int *mask_B, int elementcount) {
@@ -135,6 +175,15 @@ std::vector<uint64_t> compare_cpu(std::vector<uint64_t> a, std::vector<uint64_t>
         }
     }
     return C;
+}
+void encode_no(std::vector<uint64_t> start, std::vector<int> &mask, std::string &outcome){
+    std::string helper = "";
+    for(int i=0;i<start.size();i++){
+        mask.push_back(outcome.length());
+        helper = std::to_string(start.at(i));
+        mask.push_back(helper.length());
+        outcome = outcome + helper;
+    }
 }
 
 void encode2(std::vector<uint64_t> start, std::vector<int> &mask, std::string &outcome){
@@ -213,12 +262,12 @@ void generate2(){
 
 
 void generate(std::vector<uint64_t> &start,int elementcount){
-    /**
+    
     for(int i=0;i<elementcount;i++){
         start.push_back(rand() % 1024);
     }
-    **/
     
+    /**
     start.push_back(988888888888888);
     start.push_back(866);
     start.push_back(666);
@@ -227,7 +276,7 @@ void generate(std::vector<uint64_t> &start,int elementcount){
     start.push_back(666);
     start.push_back(8822);
     start.push_back(2);
-    
+    **/
 
 }
 
@@ -270,22 +319,22 @@ int main()
     std::vector<int> mask2;
     std::string outcome2 = "";
 
-    int elementcount = 8;
+    int elementcount = 10000;
     
     generate(start, elementcount);
     generate(start2, elementcount);
-    //for (auto i: start)
-    //    std::cout << i << ", ";
-    //std::cout<<std::endl;
+    for (auto i: start)
+        std::cout << i << ", ";
+    std::cout<<std::endl;
 
-    //for (auto i: start2)
-    //    std::cout << i << ", ";
-    //std::cout<<std::endl;
-    encode2(start, mask, outcome);
-    encode2(start2, mask2, outcome2);
+    for (auto i: start2)
+        std::cout << i << ", ";
+    std::cout<<std::endl;
+    encode_no(start, mask, outcome);
+    encode_no(start2, mask2, outcome2);
     
-    //std::cout << outcome << std::endl;
-    /**
+    std::cout << outcome << std::endl;
+    
     for (auto i: mask)
         std::cout << i << ", ";
     std::cout<<std::endl;
@@ -295,7 +344,7 @@ int main()
     for (auto i: mask2)
         std::cout << i << ", ";
     std::cout<<std::endl;
-    **/
+    
     
     char* A;
     char* d_A;
@@ -346,7 +395,7 @@ int main()
     cudaMemcpy( d_mask_B, mask_B, bytes4, cudaMemcpyHostToDevice);
     cudaMemset(d_C, 0, elementcount * sizeof(int));
 
-    add<<<64, 1024>>>(d_A,d_B,d_C, d_mask_A,d_mask_B , elementcount);
+    compare_no<<<64, 1024>>>(d_A,d_B,d_C, d_mask_A,d_mask_B , elementcount);
     cudaError_t cudaerr = cudaDeviceSynchronize();
     if (cudaerr != cudaSuccess)
         printf("kernel launch failed with error \"%s\".\n",
