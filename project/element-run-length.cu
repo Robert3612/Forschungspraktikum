@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <math.h>
 #include <sstream>
+#include <inttypes.h>
+#include <fstream>
 __device__ uint64_t pow10_fast(int n){
     static uint64_t pow10[20] = {
         1, 10, 100, 1000, 10000, 
@@ -144,7 +146,7 @@ void compare_no(char *A, char *B, int *C, int *mask_A, int *mask_B, int elementc
         a = decode_int_no(A, mask_A, i, 0);
         b = decode_int_no(B, mask_B, i, 1);
 
-        printf("hallo4 %u %lld %lld\n", i, a, b);
+        //printf("hallo4 %u %lld %lld\n", i, a, b);
         if(a > b){
             C[i] = (int) 1;
         }
@@ -168,7 +170,7 @@ void add(char *A, char *B, int *C, int *mask_A, int *mask_B, int elementcount) {
         a = decode_int(A, mask_A, i, 0);
         b = decode_int(B, mask_B, i, 1);
 
-        printf("hallo4 %u %lld %lld\n", i, a, b);
+        //printf("hallo4 %u %lld %lld\n", i, a, b);
         if(a > b){
             C[i] = (int) 1;
         }
@@ -190,7 +192,7 @@ void hello_world(char *A, int *mask_A, int i)
 std::vector<uint64_t> compare_cpu(std::vector<uint64_t> a, std::vector<uint64_t> b){
     std::vector<uint64_t> C;
     for(int i=0;i<a.size();i++){
-        std::cout<<i<<", " << a.at(i)<<", "<<b.at(i)<<std::endl;
+        //std::cout<<i<<", " << a.at(i)<<", "<<b.at(i)<<std::endl;
         if(a.at(i) > b.at(i)){
             C.push_back(1);
         }
@@ -206,6 +208,7 @@ void encode_no(std::vector<uint64_t> start, std::vector<int> &mask, std::string 
         mask.push_back(outcome.length());
         helper = std::to_string(start.at(i));
         mask.push_back(helper.length());
+        //mask.push_back(0);
         outcome = outcome + helper;
     }
 }
@@ -299,7 +302,7 @@ void generate_stuff(std::vector<uint64_t> &start,int elementcount, int repeat){
     int diff = repeat;
     int repeat_diff= repeat;
     for(int i=0;i<elementcount;i++){
-        length = rand() % 20 + 1 ;
+        length = rand() % 19 + 1 ;
         single = rand() % 2;
         while(length > 0){
             if(single == 0){
@@ -325,7 +328,7 @@ void generate_stuff(std::vector<uint64_t> &start,int elementcount, int repeat){
                 }
             }
         }
-        std::cout<<realnumber<<std::endl;
+        //std::cout<<realnumber<<std::endl;
         start.push_back(std::stoull(realnumber));
         realnumber = "";
     }
@@ -379,9 +382,129 @@ int* to_int_array(std::vector<int> v){
     return answer;
 }
 
+void test(){
+
+
+    int elementcount = 50000;
+    
+    std::ofstream myFile("run-length2.csv");
+    myFile << "kernel;element_count;repeat;block_count;thread_count;time_ms;throughput;length\n";
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    for(int l = 2; l<=100;l++){
+        std::cout<< "l: "<<l<<std::endl;
+
+        std::vector<uint64_t> start_run;
+        std::vector<int> mask;
+        std::string outcome = "";
+
+        std::vector<uint64_t> start_run2;
+        std::vector<int> mask2;
+        std::string outcome2 = "";
+
+        generate_stuff(start_run, elementcount, l);
+        generate_stuff(start_run2, elementcount, l);
+
+        encode2(start_run, mask, outcome);
+        encode2(start_run2, mask2, outcome2);
+
+    char* A;
+    char* d_A;
+    int* mask_A;
+    int* d_mask_A;
+    char* B;
+    char* d_B;
+    int* mask_B;
+    int* d_mask_B;
+
+    int* d_C;
+
+    int* h_out;
+    size_t bytes1 = outcome.length() * sizeof(char);
+    size_t bytes3 = outcome2.length() * sizeof(char);
+    size_t bytes2 = mask.size() * sizeof(int);
+    size_t bytes4 = mask2.size() * sizeof(int);
+
+    h_out = (int*)malloc(elementcount*sizeof(int));
+
+    A = (char*)malloc(bytes1);
+    mask_A = (int*)malloc(bytes2);
+
+    B = (char*)malloc(bytes3);
+    mask_B = (int*)malloc(bytes4);
+
+    cudaMalloc(&d_A, bytes1);
+    cudaMalloc(&d_mask_A, bytes2);
+
+    cudaMalloc(&d_B, bytes3);
+    cudaMalloc(&d_mask_B, bytes4);
+
+    cudaMalloc(&d_C, elementcount* sizeof(int));
+
+    A = to_char_array(outcome);
+    B = to_char_array(outcome2);
+
+
+    mask_A = to_int_array(mask);
+    mask_B = to_int_array(mask2);
+
+
+    cudaMemcpy( d_A, A, bytes1, cudaMemcpyHostToDevice);
+    cudaMemcpy( d_mask_A, mask_A, bytes2, cudaMemcpyHostToDevice);
+    cudaMemcpy( d_B, B, bytes3, cudaMemcpyHostToDevice);
+    cudaMemcpy( d_mask_B, mask_B, bytes4, cudaMemcpyHostToDevice);
+
+    for(int i=16;i<=1024;i=i*2){
+        std::cout<< "i: "<<i<<std::endl;
+        for(int j=8;j<=512;j=j*2){
+            std::cout<<"j: "<< j<<std::endl;
+    cudaMemset(d_C, 0, elementcount * sizeof(int));
+
+    cudaEventRecord(start);
+    add<<<j, i>>>(d_A,d_B,d_C, d_mask_A,d_mask_B , elementcount);
+    cudaEventRecord(stop);
+    cudaError_t cudaerr = cudaDeviceSynchronize();
+    if (cudaerr != cudaSuccess)
+        printf("kernel launch failed with error \"%s\".\n",
+               cudaGetErrorString(cudaerr));
+
+    cudaMemcpy(h_out, d_C, elementcount* sizeof(int), cudaMemcpyDeviceToHost);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    
+    std::vector<uint64_t> cpu = compare_cpu(start_run, start_run2);
+
+    validate(cpu, h_out);
+
+    uint64_t input_size = (outcome.length() + mask.size() * sizeof(int) ) + (outcome2.length() + mask2.size() * sizeof(int) );
+    myFile << "run-length2" << ";";
+    myFile << elementcount << ";";
+    myFile << l << ";";
+    myFile << j << ";";
+    myFile << i << ";";
+    myFile << milliseconds << ";";
+    myFile << input_size/milliseconds/1e6 << ";";
+    myFile << outcome.length() + outcome2.length() <<"\n";
+      }
+    }
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+    cudaFree(d_mask_A);
+    cudaFree(d_mask_B);
+
+    free(h_out);
+    }
+}
+
 
 int main()
-{
+{   
+    test();
+    /**
      std::vector<uint64_t> start;
      std::vector<int> mask;
     std::string outcome = "";
@@ -390,7 +513,7 @@ int main()
     std::vector<int> mask2;
     std::string outcome2 = "";
 
-    int elementcount = 10;
+    int elementcount = 20;
     
     generate_stuff(start, elementcount, 5);
     generate_stuff(start2, elementcount, 5);
@@ -478,6 +601,14 @@ int main()
     std::vector<uint64_t> cpu = compare_cpu(start, start2);
 
     validate(cpu, h_out);
-    
+
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+    cudaFree(d_mask_A);
+    cudaFree(d_mask_B);
+
+    free(h_out);
+    **/
     
 }
