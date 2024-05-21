@@ -85,6 +85,8 @@ void add_shared( uint64_t* C, uint64_t a, uint64_t b, int number_length, int i, 
 
     uint64_t c = a +b;
 
+    //printf("wow3, %u %lld\n", i,(unsigned long long int) c);
+
     if(getLength(c)<=number_length){
 
         int amount = 64 / number_length;
@@ -96,6 +98,7 @@ void add_shared( uint64_t* C, uint64_t a, uint64_t b, int number_length, int i, 
         int position = i_real % amount;
 
         c = c << (position*number_length);
+        printf("wow3, %u %lld\n", i,(unsigned long long int) c);
 
         myAtomicAdd(&C[chunk], c);
     }
@@ -158,6 +161,12 @@ void hello_world()
  printf("Hello World From GPU!\n");
 }
 
+__global__
+void rand_gpu(uint64_t* A, uint64_t* B , int n, int elementcount)
+{
+ printf("Hello World From GPU!\n");
+}
+
 __global__ 
 void zero_sup_no(uint64_t* A, uint64_t* B, int number_length_A,int number_length_B, int array_length,int elementcount,  uint64_t* C){
     uint64_t a;
@@ -185,29 +194,40 @@ void no_zero(uint64_t* A, uint64_t* B,int number_length_A, int elementcount, uin
          i += blockDim.x * gridDim.x)
     {
         
-        /**c = A[i] + B[i];
+        c = A[i] + B[i];
+        
         if(getLength(c) <= number_length_A){
             C[i] = c;
         }
         else{
             C[i] = 0;
-        }**/
+        }/**
         if(A[i] > B[i]){
             C[i] = 1;
         }
         else{
             C[i] = 0;
         }
-
+            **/
 
     }
 }
 
+//3250, 6500
 __global__ 
 void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount, uint64_t* C){
     extern __shared__ uint64_t shared_mem[];
+    int n = (array_length + (1500 - 1)) / 1500;
+    int amount = 64 / number_length;
+    //int n = array_length / 1500;
+    int length = 1500;
+    int ele = amount*1500;
+    //printf("wow, %u \n", n);
+    for(int j = 0;j<n-1;j++){
+        
 
-   for (int i = threadIdx.x; i < array_length; i += blockDim.x )
+       // printf("wow4,%u %u %u %u %u\n",j, n, length, ele, elementcount);
+    for (int i = threadIdx.x; i < length; i += blockDim.x )
     {
         //if(i==0){
           //  printf("wow3, %u %lld %lld\n", i,(unsigned long long int) A[i], (unsigned long long int) B[i]);
@@ -215,56 +235,142 @@ void zero_sup_yes(uint64_t* A, uint64_t* B, int number_length, int array_length,
         //printf("wow, %u %u %u\n", i, i+ array_length, array_length);
        // printf("wow, %u %u %u\n", i, A[i], B[i]);
          //printf("wow, %lld %lld\n", (unsigned long long) A[i], (unsigned long long) B[i]);
-        shared_mem[i] = A[i];
-        shared_mem[i+array_length ] = B[i];
+        //printf("wow2, %u %u %u\n", i, elementcount, array_length);
+        shared_mem[i] = A[i+length*j];
+        shared_mem[i+length] = B[i+length*j];
         //shared_mem[10000] = 3;
     }
    
-
+   //printf("wow3,%u %u %u %u %u\n",j, n, length, ele, elementcount);
     
     __syncthreads();
+    //printf("wow4, %u %u %u %u\n", n, length, ele, elementcount);
     uint64_t a;
     uint64_t b;
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
-         i < elementcount; 
+         i < ele; 
          i += blockDim.x * gridDim.x)
     {
-        a = decode_int_shared(shared_mem, i, number_length, elementcount, array_length);
-        b = decode_int_shared(shared_mem, i+elementcount,number_length, elementcount, array_length);
-
-        compare(C, a, b, number_length, i);
+        a = decode_int_shared(shared_mem, i, number_length, ele, length);
+        b = decode_int_shared(shared_mem, i+ele,number_length, ele, length);
+        //printf("wow2, %lld %lld\n", a, b);
+        add(C, a, b, number_length, i+ele*j);
 
     }
+    __syncthreads();
+    }
+    __syncthreads();
+    length = array_length - (n-1)*1500;
+    ele = elementcount - amount*1500*(n-1);
+    //printf("wow4,%u %u %u %u %u\n",array_length, n, length, ele, elementcount);
+    for (int i = threadIdx.x; i < length; i += blockDim.x )
+    {
+        //if(i==0){
+          //  printf("wow3, %u %lld %lld\n", i,(unsigned long long int) A[i], (unsigned long long int) B[i]);
+        //}
+        //printf("wow, %u %u %u\n", i, i+ array_length, array_length);
+       // printf("wow, %u %u %u\n", i, A[i], B[i]);
+         //printf("wow, %lld %lld\n", (unsigned long long) A[i], (unsigned long long) B[i]);
+        //printf("wow2, %u %u %u\n", i, elementcount, array_length);
+        shared_mem[i] = A[i+1500*(n-1)];
+        shared_mem[i+length] = B[i+1500*(n-1)];
+        //shared_mem[10000] = 3;
+    }
+   
+   //printf("wow3, %u %u %u %u\n", n, length, ele, elementcount);
+    
+    __syncthreads();
+    //printf("wow4, %u %u %u %u\n", n, length, ele, elementcount);
+    uint64_t a;
+    uint64_t b;
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < ele; 
+         i += blockDim.x * gridDim.x)
+    {
+        a = decode_int_shared(shared_mem, i, number_length, ele, length);
+        b = decode_int_shared(shared_mem, i+ele,number_length, ele, length);
+        //printf("wow2, %lld %lld\n", a, b);
+        add(C, a, b, number_length, i+amount*1500*(n-1));
+
+    }
+    __syncthreads();
+    
+
 }
 
-
+//252, 65
 __global__ 
 void zero_sup_yes2(uint64_t* A, uint64_t* B, int number_length, int array_length,int elementcount,  uint64_t* C){
     extern __shared__ uint64_t shared_mem[];
 
-    for (int i = threadIdx.x; i < array_length; i += blockDim.x)
+    int n = (array_length + (63 - 1)) / 63;
+    int amount = 64 / number_length;
+    //int n = array_length / 1500;
+    int length = 63;
+    int ele = amount*63;
+
+    for(int j = 0;j<n-1;j++){
+
+    for (int i = threadIdx.x; i < length; i += blockDim.x)
     {
-        shared_mem[i] = A[i];
-        shared_mem[i+array_length] = B[i];
-        shared_mem[i+2*array_length] = 0;
+        shared_mem[i] = A[i+length*j];
+        shared_mem[i+length] = B[i+length*j];
+        shared_mem[i+2*length] = 0;
+
+    }
+    __syncthreads();
+    uint64_t a;
+    uint64_t b;
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < ele; 
+         i += blockDim.x * gridDim.x)
+    {
+        a = decode_int_shared(shared_mem, i, number_length, ele, length);
+        b = decode_int_shared(shared_mem, i+ele,number_length, ele, length);
+        //printf("wow4, %u %u\n", i, i+2*ele);
+        add_shared(shared_mem, a, b, number_length, i+2*ele,  ele, length);
+
+    }
+    printf("wow4,%u %u %u %u %u\n",j, n, length, ele, elementcount);
+    __syncthreads();
+    for (int i = threadIdx.x; i < length; i += blockDim.x)
+    {
+        C[i+length*j] = shared_mem[i+2*length];
+
+    }
+    __syncthreads();
+    }
+
+    __syncthreads();
+    length = array_length - (n-1)*63;
+    ele = elementcount - amount*63*(n-1);
+    //printf("wow4,%u %u %u %u %u\n",5, n, length, ele, elementcount);
+
+    for (int i = threadIdx.x; i < length; i += blockDim.x)
+    {
+        shared_mem[i] = A[i+63*(n-1)];
+        shared_mem[i+length] = B[i+63*(n-1)];
+        shared_mem[i+2*length] = 0;
 
     }
     __syncthreads();
     int a;
     int b;
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
-         i < elementcount; 
+         i < ele; 
          i += blockDim.x * gridDim.x)
     {
-        a = decode_int_shared(shared_mem, i, number_length, elementcount, array_length);
-        b = decode_int_shared(shared_mem, i+elementcount,number_length, elementcount, array_length);
-        add_shared(shared_mem, a, b, number_length, i+2*elementcount,  elementcount, array_length);
+        a = decode_int_shared(shared_mem, i, number_length, ele, length);
+        b = decode_int_shared(shared_mem, i+ele,number_length, ele, length);
+        printf("wow3, %u %u\n", i,i+2*ele);
+        add_shared(shared_mem, a, b, number_length, i+2*ele,  ele, length);
 
     }
     __syncthreads();
-    for (int i = threadIdx.x; i < array_length; i += blockDim.x)
+    for (int i = threadIdx.x; i < length; i += blockDim.x)
     {
-        C[i] = shared_mem[i+2*array_length];
+        printf("wow4, %u %lld\n", i,shared_mem[i+2*length]);
+        C[i+63*(n-1)] = shared_mem[i+2*length];
 
     }
     __syncthreads();
@@ -424,10 +530,15 @@ void removeLeadingZeros(std::vector<std::string> &vector)
 void validate(std::vector<uint64_t> h, std::vector<uint64_t> d) {
     for (size_t i = 0; i < h.size(); i++) {
         if (h.at(i) != d.at(i)) {
-            std::cout << "found invalidated field in element " << i << std::endl;
-            std::cout << "on CPU side: " << h.at(i) << std::endl;
-            std::cout << "on GPU side: " << d.at(i) << std::endl;
             
+           std::cout << "found invalidated field in element " << i << std::endl;
+           std::cout << "on CPU side: " << h.at(i) << std::endl;
+           std::cout << "on GPU side: " << d.at(i) << std::endl;
+           /**
+           std::cout << "on CPU side: " << j << std::endl;
+           std::cout << "on GPU side: " << k << std::endl;
+           std::cout << "on GPU side: " << l << std::endl;
+            */
             
         }
     }
@@ -445,10 +556,13 @@ void test(){
     //size_t elementcount=1048576;
     //96000
     //1000
-    size_t elementcount=1000;
-    int length=8;
+    //size_t elementcount=134217728;
+    //67108864
+    //size_t elementcount=1000000;
+    size_t elementcount=6500;
+    //int length=8;
     //std::ofstream myFile("no_shared.csv");
-    std::ofstream myFile("no_zero_add.csv");
+    std::ofstream myFile("shared2_add2.csv");
     myFile << "kernel;element_count;bit_count;block_count;thread_count;time_ms;throughput\n";
 
     cudaEvent_t start, stop;
@@ -497,10 +611,23 @@ void test(){
         for(int j=8;j<=512;j=j*2){
             std::cout<<"j: "<< j<<std::endl;
             cudaMemset(d_C, 0, bytes2);
-	
-            cudaEventRecord(start);
-            no_zero<<<j, i >>>(d_A, d_B, s.number_length,h.size(),  d_C);
+
+            cudaFuncSetCacheConfig(zero_sup_yes, cudaFuncCachePreferShared);
+            
+            //zero_sup_no<<<j, i >>>(d_A, d_B, s.number_length,h.size(),  d_C);
+            //zero_sup_no<<<j, i>>>(d_A, d_B, s.number_length,s.number_length, s.array_length,h.size(),  d_C);
+            if(3*s.array_length*sizeof(uint64_t) > 1512){
+                cudaEventRecord(start);
+            zero_sup_yes2<<<j, i, 1512>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
             cudaEventRecord(stop);
+            }
+            else{
+            cudaEventRecord(start);
+            zero_sup_yes2<<<j, i, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+            cudaEventRecord(stop);
+            }
+            //zero_sup_yes<<<j, i, 2*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+            
     
             cudaMemcpy(h_out, d_C, bytes, cudaMemcpyDeviceToHost);
 
@@ -524,9 +651,9 @@ void test(){
         std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
         //std::vector<uint64_t> c = compare_cpu(a,b);
 
-        validate(c, decoded_numbers);
+        //validate(c, decoded_numbers, j, i, l);
 
-            myFile << "no_shared" << ";";
+            myFile << "no_shared2" << ";";
             myFile << elementcount << ";";
             myFile << l << ";";
             myFile << j << ";";
@@ -549,10 +676,10 @@ void test2(){
     //size_t elementcount=1048576;
     //96000
     //1000
-    size_t elementcount=1000;
-    int length=8;
+    size_t elementcount=1000000;
+    //int length=8;
     //std::ofstream myFile("no_shared.csv");
-    std::ofstream myFile("no_zero_compare.csv");
+    std::ofstream myFile("no_zero_add3.csv");
     myFile << "kernel;element_count;bit_count;block_count;thread_count;time_ms;throughput\n";
 
     cudaEvent_t start, stop;
@@ -624,25 +751,25 @@ void test2(){
             cudaEventElapsedTime(&milliseconds, start, stop);
 
             int max_number_length;
-            int max_array_length;
+            //int max_array_length;
             if(s.number_length> s2.number_length){
             max_number_length = s.number_length;
-            max_array_length = s.array_length;
+            //max_array_length = s.array_length;
         }
         else{
             max_number_length = s2.number_length;
-            max_array_length = s2.array_length;
+            //max_array_length = s2.array_length;
         }
 
         //std::vector<uint64_t> decoded_numbers = decode(h_out, max_number_length, max_array_length);
-        //std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
-        std::vector<uint64_t> c = compare_cpu(a,b);
+        std::vector<uint64_t> c = add_cpu(a,b, max_number_length);
+        //std::vector<uint64_t> c = add_cpu(a,b);
         std::vector<uint64_t> decoded_numbers;
         for(int s=0;s<a.size();s++){
             decoded_numbers.push_back(h_out[s]);
         }
 
-        validate(c, decoded_numbers);
+        //validate(c, decoded_numbers);
 
             myFile << "no_shared" << ";";
             myFile << elementcount << ";";
@@ -665,13 +792,19 @@ void test2(){
 
 int main()
 {   
-    test2();
-    /**
+    //test();
+    
     std::vector<uint64_t> a;
     std::vector<uint64_t> b;
 
-    generate(a, b,16, 1020);
+    generate(a, b,2, 20);
+    for(uint64_t i:a)
+        std::cout<<i<<", ";
 
+    std::cout<<std::endl;
+
+    for(uint64_t i:b)
+        std::cout<<i<<", ";
     //std::vector<std::string> h{"00000110000100000000", "110010100000000", "1100000000", "110001100000000", "110101100000001", "110001000000000", "100000100000000", "110101100010000"};
     //std::vector<std::string> h2{"001000100000001", "10010100000001", "10010100000001", "10001100000001", "10101100000000", "10001000000001", "100000100000001", "110101100100001"};
     std::vector<std::string> h = int_to_string(a);
@@ -717,7 +850,13 @@ int main()
     std::cout<<"hello "<< 3*s.array_length*sizeof(uint64_t)<<std::endl;
     std::cout<<"hello "<< sizeof(uint64_t)<<std::endl;
     //cudaFuncSetAttribute(zero_sup_yes2, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
-    zero_sup_yes2<<<64, 1024, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+   // if(2*s.array_length*sizeof(uint64_t) > 24000){
+   //     zero_sup_yes<<<64, 1024, 24000>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+   // }
+   // else{
+    //    std::cout<<"hier"<<std::endl;
+    zero_sup_yes2<<<256, 16, 3*s.array_length*sizeof(uint64_t)>>>(d_A, d_B, s.number_length, s.array_length,h.size(),  d_C);
+    //}
     
     //zero_sup_no<<<64, 1024>>>(d_A, d_B, s.number_length,s.number_length, s.array_length,h.size(),  d_C);
     //hello_world<<<1, 1>>>();
@@ -751,7 +890,7 @@ int main()
     cudaFree(d_C);
 
     free(h_out);
-    */
+    
     
     
 }

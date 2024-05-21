@@ -51,8 +51,8 @@ __device__ void get_number_and_length(char *array, int* mask, int &number_length
    __device__ uint64_t decode_int_no(char *array, int* mask, int i, int h)
 {
 
-    int helper = mask[i*2];
-    int length = mask[i*2+1];
+    int helper = mask[i*3];
+    int length = mask[i*3+1];
     uint64_t answer = 0;
     int n = 0;
     
@@ -208,7 +208,7 @@ void encode_no(std::vector<uint64_t> start, std::vector<int> &mask, std::string 
         mask.push_back(outcome.length());
         helper = std::to_string(start.at(i));
         mask.push_back(helper.length());
-        //mask.push_back(0);
+        mask.push_back(0);
         outcome = outcome + helper;
     }
 }
@@ -334,6 +334,35 @@ void generate_stuff(std::vector<uint64_t> &start,int elementcount, int repeat){
     }
 }
 
+void generate_stuff2(std::vector<uint64_t> &start,int elementcount, int repeat, int length){
+    char number ='0'+ rand() % 10 ;
+    int single = 0;
+    std::string realnumber = "";
+    int reallength = length;
+    while(length > 0){
+        //std::cout<<length<<std::endl;
+        single = rand() % 2;
+        if(single == 0){
+            realnumber = realnumber + std::to_string(rand() % 9 +1);
+            length--;
+        }
+        else{
+            realnumber = realnumber + std::string(repeat,number );
+            length = length - repeat;
+            number ='0'+ rand() % 10 ;
+        }
+    }
+    realnumber = realnumber.substr(0,reallength);
+    //std::cout << length<<std::endl;
+    //std::cout << realnumber.length()<<std::endl;
+    int n = realnumber.length() / elementcount;
+    std::cout<<realnumber<<std::endl;
+    for(int i =0;i<elementcount;i++){
+        std::cout<<i<<std::endl;
+        std::cout<<n<<std::endl;
+        start.push_back(std::stoull(realnumber.substr(i*n,n)));
+    }
+}
 
 void generate(std::vector<uint64_t> &start,int elementcount){
     
@@ -384,16 +413,16 @@ int* to_int_array(std::vector<int> v){
 
 void test(){
 
-
-    int elementcount = 50000;
+    int length = 1000000;
+    int elementcount = 500000;
     
-    std::ofstream myFile("run-length2.csv");
+    std::ofstream myFile("run-length4.csv");
     myFile << "kernel;element_count;repeat;block_count;thread_count;time_ms;throughput;length\n";
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    for(int l = 2; l<=100;l++){
+    for(int l = 1; l<=50;l++){
         std::cout<< "l: "<<l<<std::endl;
 
         std::vector<uint64_t> start_run;
@@ -404,8 +433,8 @@ void test(){
         std::vector<int> mask2;
         std::string outcome2 = "";
 
-        generate_stuff(start_run, elementcount, l);
-        generate_stuff(start_run2, elementcount, l);
+        generate_stuff2(start_run, elementcount, l, length);
+        generate_stuff2(start_run2, elementcount, l, length);
 
         encode2(start_run, mask, outcome);
         encode2(start_run2, mask2, outcome2);
@@ -480,7 +509,7 @@ void test(){
     validate(cpu, h_out);
 
     uint64_t input_size = (outcome.length() + mask.size() * sizeof(int) ) + (outcome2.length() + mask2.size() * sizeof(int) );
-    myFile << "run-length2" << ";";
+    myFile << "no-run-length4" << ";";
     myFile << elementcount << ";";
     myFile << l << ";";
     myFile << j << ";";
@@ -513,10 +542,10 @@ int main()
     std::vector<int> mask2;
     std::string outcome2 = "";
 
-    int elementcount = 20;
+    int elementcount = 10;
     
-    generate_stuff(start, elementcount, 5);
-    generate_stuff(start2, elementcount, 5);
+    generate_stuff2(start, elementcount, 5, 20);
+    generate_stuff2(start2, elementcount, 5, 20);
     for (auto i: start)
         std::cout << i << ", ";
     std::cout<<std::endl;
@@ -524,7 +553,7 @@ int main()
     for (auto i: start2)
         std::cout << i << ", ";
     std::cout<<std::endl;
-    
+    /**
     encode2(start, mask, outcome);
     encode2(start2, mask2, outcome2);
     
